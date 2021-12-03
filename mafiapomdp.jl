@@ -1,5 +1,5 @@
 import Pkg
-Pkg.add(["POMDPs", "POMDPSimulators", "POMDPPolicies", "POMDPModelTools", "Distributions", "QMDP", "BasicPOMCP"])
+Pkg.add(["POMDPs", "POMDPSimulators", "POMDPPolicies", "POMDPModelTools", "Distributions", "QMDP", "BasicPOMCP", "QuickPOMDPs"])
 
 import QuickPOMDPs: QuickPOMDP
 import POMDPs: solve
