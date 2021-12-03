@@ -40,11 +40,18 @@ end
 discussion_actions = [accuse1, accuse2, accuse3, accuse4, accuse5, claimvillager, donothing]
 vote_actions = [vote1, vote2, vote3, vote4, vote5]
 
+struct MafiaObservation
+    # after discussion we observe dialogue, after voting we observe other votes
+    player_actions::Tuple{Action, Action, Action, Action, Action}
+    # after night we just observe alive players
+    alive_players::Tuple{Bool, Bool, Bool, Bool, Bool}
+end
+
 pomdp = QuickPOMDP(
     actions = instances(Action), # TODO can we make legal actions a function of state
 
      # depending on the game phase, observations will either be player dialogue, player votes, or nothing.
-    obstype = Tuple{Action, Action, Action, Action, Action},
+    obstype = MafiaObservation,
 
     discount = 0.95,
 
@@ -65,17 +72,17 @@ pomdp = QuickPOMDP(
             if sp.game_phase == discussion2 || sp.game_phase == voting
                 # TODO
                 dialogue = rand(rng, discussion_actions, (1, 5))
-                return tuple(dialogue...)
+                return MafiaObservation(tuple(dialogue...), sp.alive_players)
             # sp.game_phase = night -> prev state was voting
             # so we observe votes
             elseif sp.game_phase == night
                 # TODO
                 votes = rand(rng, vote_actions, (1, 5))
-                return tuple(votes...)
+                return MafiaObservation(tuple(votes...), sp.alive_players)
             # sp.game_phase = discussion1 -> prev state was night
             # so we observe nothing
             else 
-                return (donothing, donothing, donothing, donothing, donothing)
+                return MafiaObservation((donothing, donothing, donothing, donothing, donothing), sp.alive_players)
             end
         end
     end,
