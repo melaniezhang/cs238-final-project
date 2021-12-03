@@ -50,7 +50,6 @@ end
 pomdp = QuickPOMDP(
     actions = instances(Action), # TODO can we make legal actions a function of state
 
-     # depending on the game phase, observations will either be player dialogue, player votes, or nothing.
     obstype = MafiaObservation,
 
     discount = 0.95,
