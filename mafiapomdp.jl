@@ -99,10 +99,10 @@ pomdp = QuickPOMDP(
             else # At night we can only do nothing.
                 allowed_actions = [donothing] 
             end
-            if !(a in allowed_actions)
-                return -5.0
-            else
+            if a in allowed_actions
                 return 0.0
+            else
+                return -5.0
             end
         end
     end,
