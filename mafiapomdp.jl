@@ -47,8 +47,40 @@ struct MafiaObservation
     alive_players::Tuple{Bool, Bool, Bool, Bool, Bool}
 end
 
+function generate_votes(s, player_actions, rng)
+    a = player_actions[1]
+    for i in 2:5
+        if s.alive_players[i]
+            valid_actions_for_i = [vote_actions[j] for j in 1:5 if j != i && s.alive_players[j]]
+            if i == s.mafia_player
+                # Mafia strategy: if voted on by the agent, vote randomly, otherwise follow the agent
+                if a in valid_actions_for_i
+                    player_actions[i] = a
+                else
+                    player_actions[i] = rand(rng, valid_actions_for_i)
+                end
+            else
+                # Villager strategy: if voted on by the agent, vote randomly, otherwise bandwagon 50% and random 50%
+                if a in valid_actions_for_i && rand(rng) < 0.5
+                    player_actions[i] = a
+                else
+                    player_actions[i] = rand(rng, valid_actions_for_i)
+                end
+            end
+        end
+    end
+    votes_for_each_player = [0, 0, 0, 0, 0]
+    for i in 1:5
+        i_vote = Integer(player_actions[i]) - 7
+        if i_vote > 0
+            votes_for_each_player[i_vote] += 1
+        end
+    end
+    return votes_for_each_player
+end
+
 pomdp = QuickPOMDP(
-    actions = instances(Action), # TODO can we make legal actions a function of state
+    actions = instances(Action),
 
     obstype = MafiaObservation,
 
@@ -57,8 +89,21 @@ pomdp = QuickPOMDP(
     transition = function (s, a)
         ImplicitDistribution() do rng
             next_game_phase = mod(Int(s.game_phase), 4) + 1 # increment the game phase
-            # TODO alive_players should change depending on the action & game phase
-            alive_players = rand(rng, [true, false], (1,5))
+            alive_players = collect(s.alive_players)
+            if s.game_phase == voting
+                votes_for_each_player = generate_votes(s, [a, donothing, donothing, donothing, donothing], rng)
+                voted_out = argmax(votes_for_each_player)
+                most_votes = votes_for_each_player[voted_out]
+                if count(i->i==most_votes, votes_for_each_player) == 1
+                    alive_players[voted_out] = false
+                else # tie -> nobody dies
+                end
+            elseif s.game_phase == night
+                # mafia chooses someone to kill at random
+                can_kill = [p for p in 1:5 if (p != s.mafia_player) && s.alive_players[p]]
+                killed = rand(rng, can_kill)
+                alive_players[killed] = false
+            end
             return MafiaState(s.mafia_player, GamePhase(next_game_phase), tuple(alive_players...))
         end
     end,
@@ -105,33 +150,7 @@ pomdp = QuickPOMDP(
                 consistent = false
                 tries = 0
                 while !consistent
-                    for i in 2:5
-                        if sp.alive_players[i]
-                            valid_actions_for_i = [vote_actions[j] for j in 1:5 if j != i && sp.alive_players[j]]
-                            if i == sp.mafia_player
-                                # Mafia strategy: if voted on by the agent, vote randomly, otherwise follow the agent
-                                if a in valid_actions_for_i
-                                    player_actions[i] = a
-                                else
-                                    player_actions[i] = rand(rng, valid_actions_for_i)
-                                end
-                            else
-                                # Villager strategy: if voted on by the agent, vote randomly, otherwise bandwagon 50% and random 50%
-                                if a in valid_actions_for_i && rand(rng) < 0.5
-                                    player_actions[i] = a
-                                else
-                                    player_actions[i] = rand(rng, valid_actions_for_i)
-                                end
-                            end
-                        end
-                    end
-                    votes_for_each_player = [0, 0, 0, 0, 0]
-                    for i in 1:5
-                        i_vote = Integer(player_actions[i]) - 7
-                        if i_vote > 0
-                            votes_for_each_player[i_vote] += 1
-                        end
-                    end
+                    votes_for_each_player = generate_votes(sp, player_actions, rng)
                     voted_out = argmax(votes_for_each_player)
                     if !sp.alive_players[voted_out]
                         consistent = true
