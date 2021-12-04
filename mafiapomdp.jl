@@ -65,24 +65,91 @@ pomdp = QuickPOMDP(
 
     observation = function (a, sp)
         ImplicitDistribution() do rng
+            # println(a, ' ', sp.alive_players, ' ', sp.game_phase)
+            player_actions = [donothing, donothing, donothing, donothing, donothing]
             # sp.game_phase=discussion2 -> prev state was discussion1
             # sp.game_phase=voting -> prev state was discussion2
             # so in either case observation type is dialogue
             if sp.game_phase == discussion2 || sp.game_phase == voting
-                # TODO
-                dialogue = rand(rng, discussion_actions, (1, 5))
-                return MafiaObservation(tuple(dialogue...), sp.alive_players)
+                random_dialogue = rand(rng, discussion_actions, 4)
+                player_actions[1] = a
+                for i in 2:5
+                    if sp.alive_players[i]
+                        valid_actions_for_i = [discussion_actions[j] for j in 1:7 if (j > 5) || (j != i && sp.alive_players[j])]
+                        if i == sp.mafia_player
+                            # Mafia strategy: if accused by the agent, accuse back, otherwise act randomly
+                            if Integer(a) == i
+                                player_actions[i] = accuse1
+                            else
+                                player_actions[i] = rand(rng, valid_actions_for_i)
+                            end
+                        else
+                            # Villager strategy: if accused by the agent, defend themselves, otherwise bandwagon 50% and random 50%
+                            if Integer(a) == i
+                                player_actions[i] = claimvillager
+                            else
+                                if a in valid_actions_for_i && rand(rng) < 0.5
+                                    player_actions[i] = a
+                                else
+                                    player_actions[i] = rand(rng, valid_actions_for_i)
+                                end
+                            end
+                        end
+                    end
+                end
             # sp.game_phase = night -> prev state was voting
             # so we observe votes
             elseif sp.game_phase == night
-                # TODO
-                votes = rand(rng, vote_actions, (1, 5))
-                return MafiaObservation(tuple(votes...), sp.alive_players)
+                player_actions[1] = a
+                
+                consistent = false
+                tries = 0
+                while !consistent
+                    for i in 2:5
+                        if sp.alive_players[i]
+                            valid_actions_for_i = [vote_actions[j] for j in 1:5 if j != i && sp.alive_players[j]]
+                            if i == sp.mafia_player
+                                # Mafia strategy: if voted on by the agent, vote randomly, otherwise follow the agent
+                                if a in valid_actions_for_i
+                                    player_actions[i] = a
+                                else
+                                    player_actions[i] = rand(rng, valid_actions_for_i)
+                                end
+                            else
+                                # Villager strategy: if voted on by the agent, vote randomly, otherwise bandwagon 50% and random 50%
+                                if a in valid_actions_for_i && rand(rng) < 0.5
+                                    player_actions[i] = a
+                                else
+                                    player_actions[i] = rand(rng, valid_actions_for_i)
+                                end
+                            end
+                        end
+                    end
+                    votes_for_each_player = [0, 0, 0, 0, 0]
+                    for i in 1:5
+                        i_vote = Integer(player_actions[i]) - 7
+                        if i_vote > 0
+                            votes_for_each_player[i_vote] += 1
+                        end
+                    end
+                    voted_out = argmax(votes_for_each_player)
+                    if !sp.alive_players[voted_out]
+                        consistent = true
+                    else
+                        # println(player_actions, ' ', votes_for_each_player, ' ', voted_out)
+                        tries += 1
+                        if tries > 500
+                            println("ERROR: Impossible to generate votes consistent with currently living players")
+                            break
+                        end
+                    end
+                end
             # sp.game_phase = discussion1 -> prev state was night
             # so we observe nothing
-            else 
-                return MafiaObservation((donothing, donothing, donothing, donothing, donothing), sp.alive_players)
+            else
             end
+            # println(player_actions, '\n')
+            return MafiaObservation(tuple(player_actions...), sp.alive_players)
         end
     end,
 
