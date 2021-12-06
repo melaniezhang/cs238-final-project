@@ -264,7 +264,6 @@ while random_successful_simulations < 1000
         last_step = last(h)
         mafia_player = last_step[:s].mafia_player
         last_obs = last_step[:o]
-        random_successful_simulations += 1
         if !last_obs.alive_players[mafia_player]
             global random_wins += 1
         end
@@ -291,25 +290,3 @@ println("random_successful_simulations: $random_successful_simulations")
 println("random_failed_simulations: $random_failed_simulations")
 println("random_wins: $random_wins")
 println("--------------^RANDOM POLICY RESULTS^---------------")
-
-# while successful_simulations < 5
-#     observations = []
-#     mafia_player = None
-#     try
-#         for (s, a, o) in stepthrough(pomdp, planner, "s,a,o", max_steps = 10)
-#             push!(observations, o)
-#             push!(states, s)
-#         end
-#         global successful_simulations += 1
-#         print("successful sim")
-#         o = last(observations)
-#         s = states[1]
-#         if !o.alive_players[s.mafia_player]
-#             global wins += 1
-#     end
-#     catch
-#         global failed_simulations += 1
-#         continue
-#     end
-# end
-
