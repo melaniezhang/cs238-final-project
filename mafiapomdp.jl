@@ -184,6 +184,8 @@ pomdp = QuickPOMDP(
             return 1.0
         elseif findall(x->x, sp.alive_players) == [sp.mafia_player] # only mafia alive
             return -1.0
+        elseif !sp.alive_players[1] # player is dead
+            return -5.0
         else # penalize actions that are illegal during different phases of the game
             if s.game_phase == discussion1 || s.game_phase == discussion2 # We can accuse someone who is alive, claim villager, or do nothing during discussion
                 allowed_actions = [discussion_actions[i] for i in 2:7 if i > 5 || s.alive_players[i]]
