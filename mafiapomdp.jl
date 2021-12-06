@@ -4,8 +4,8 @@ Pkg.add(["POMDPs", "POMDPSimulators", "POMDPPolicies", "POMDPModelTools", "Distr
 import QuickPOMDPs: QuickPOMDP
 import POMDPs: solve
 import POMDPModelTools: ImplicitDistribution, Uniform, Deterministic
-import POMDPPolicies: alphavectors
-import POMDPSimulators: stepthrough
+import POMDPPolicies: alphavectors, RandomPolicy
+import POMDPSimulators: stepthrough, HistoryRecorder
 import Distributions: Normal
 import QMDP: QMDPSolver
 import BasicPOMCP: POMCPSolver
@@ -212,10 +212,104 @@ pomdp = QuickPOMDP(
 solver = POMCPSolver()
 planner = solve(solver, pomdp)
 
-# the below (sometimes, not always) fails after the first iteration for some reason
-# with error message "ERROR: LoadError: ArgumentError: range must be non-empty"
-for (s, a, o) in stepthrough(pomdp, planner, "s,a,o", max_steps=10)
-    println("State was $s,")
-    println("action $a was taken,")
-    println("and observation $o was received.\n")
+# # the below (sometimes, not always) fails after the first iteration for some reason
+# # with error message "ERROR: LoadError: ArgumentError: range must be non-empty"
+# for (s, a, o) in stepthrough(pomdp, planner, "s,a,o", max_steps=10)
+#     println("State was $s,")
+#     println("action $a was taken,")
+#     println("and observation $o was received.\n")
+# end
+
+using POMDPSimulators, POMDPs, POMDPPolicies
+hr = HistoryRecorder(max_steps=10)
+# h = simulate(hr, pomdp, planner)
+
+# print("simmed something")
+
+# # calculate win rate
+solver_wins = 0
+solver_successful_simulations = 0
+solver_failed_simulations = 0
+while solver_successful_simulations < 1000
+    try 
+        h = simulate(hr, pomdp, planner)
+        last_step = last(h)
+        mafia_player = last_step[:s].mafia_player
+        last_obs = last_step[:o]
+        if !last_obs.alive_players[mafia_player]
+            global solver_wins += 1
+        end
+        global solver_successful_simulations += 1
+        # print("successful simulation")
+    catch
+        global solver_failed_simulations += 1
+        continue
+    end
 end
+
+
+using POMDPSimulators, POMDPs, POMDPPolicies
+hr = HistoryRecorder(max_steps=10)
+# h = simulate(hr, pomdp, planner)
+
+# print("simmed something")
+
+# # calculate win rate for random policy
+random_wins = 0
+random_successful_simulations = 0
+random_failed_simulations = 0
+while random_successful_simulations < 1000
+    try 
+        h = simulate(hr, pomdp, RandomPolicy(pomdp))
+        last_step = last(h)
+        mafia_player = last_step[:s].mafia_player
+        last_obs = last_step[:o]
+        random_successful_simulations += 1
+        if !last_obs.alive_players[mafia_player]
+            global random_wins += 1
+        end
+        global random_successful_simulations += 1
+        # print("successful simulation")
+    catch
+        global random_failed_simulations += 1
+        continue
+    end
+end
+println("-------------- SOLVER RESULTS---------------")
+solver_win_rate = 1.0 * solver_wins / solver_successful_simulations
+println("solver win rate: $solver_win_rate")
+println("solver_successful_simulations: $solver_successful_simulations")
+println("solver_failed_simulations: $solver_failed_simulations")
+println("solver_wins: $solver_wins")
+println("--------------^SOLVER RESULTS^---------------")
+
+
+println("-------------- RANDOM POLICY RESULTS---------------")
+random_win_rate = 1.0 * random_wins / random_successful_simulations
+println("random win rate: $random_win_rate")
+println("random_successful_simulations: $random_successful_simulations")
+println("random_failed_simulations: $random_failed_simulations")
+println("random_wins: $random_wins")
+println("--------------^RANDOM POLICY RESULTS^---------------")
+
+# while successful_simulations < 5
+#     observations = []
+#     mafia_player = None
+#     try
+#         for (s, a, o) in stepthrough(pomdp, planner, "s,a,o", max_steps = 10)
+#             push!(observations, o)
+#             push!(states, s)
+#         end
+#         global successful_simulations += 1
+#         print("successful sim")
+#         o = last(observations)
+#         s = states[1]
+#         if !o.alive_players[s.mafia_player]
+#             global wins += 1
+#     end
+#     catch
+#         global failed_simulations += 1
+#         continue
+#     end
+# end
+
