@@ -20,6 +20,7 @@ struct MafiaState
     mafia_player::Int
     game_phase::GamePhase
     alive_players::Tuple{Bool, Bool, Bool, Bool, Bool} # alive_players[n]: whether player n is alive or not
+    killed_last_round::Int
 end
 
 @enum Action begin
@@ -50,8 +51,8 @@ end
 function generate_votes(s, player_actions, rng)
     a = player_actions[1]
     for i in 2:5
-        if s.alive_players[i]
-            valid_actions_for_i = [vote_actions[j] for j in 1:5 if j != i && s.alive_players[j]]
+        if s.alive_players[i] || s.killed_last_round == i
+            valid_actions_for_i = [vote_actions[j] for j in 1:5 if j != i && (s.alive_players[j] || s.killed_last_round == j)]
             if i == s.mafia_player
                 # Mafia strategy: if voted on by the agent, vote randomly, otherwise follow the agent
                 if a in valid_actions_for_i
@@ -90,12 +91,14 @@ pomdp = QuickPOMDP(
         ImplicitDistribution() do rng
             next_game_phase = mod(Int(s.game_phase), 4) + 1 # increment the game phase
             alive_players = collect(s.alive_players)
+            killed = 0
             if s.game_phase == voting
                 votes_for_each_player = generate_votes(s, [a, donothing, donothing, donothing, donothing], rng)
                 voted_out = argmax(votes_for_each_player)
                 most_votes = votes_for_each_player[voted_out]
                 if count(i->i==most_votes, votes_for_each_player) == 1
                     alive_players[voted_out] = false
+                    killed = voted_out
                 else # tie -> nobody dies
                 end
             elseif s.game_phase == night
@@ -104,13 +107,13 @@ pomdp = QuickPOMDP(
                 killed = rand(rng, can_kill)
                 alive_players[killed] = false
             end
-            return MafiaState(s.mafia_player, GamePhase(next_game_phase), tuple(alive_players...))
+            return MafiaState(s.mafia_player, GamePhase(next_game_phase), tuple(alive_players...), killed)
         end
     end,
 
     observation = function (a, sp)
         ImplicitDistribution() do rng
-            # println(a, ' ', sp.alive_players, ' ', sp.game_phase)
+            # println(a, ' ', sp.alive_players, ' ', sp.game_phase, ' ', sp.killed_last_round)
             player_actions = [donothing, donothing, donothing, donothing, donothing]
             # sp.game_phase=discussion2 -> prev state was discussion1
             # sp.game_phase=voting -> prev state was discussion2
@@ -152,10 +155,14 @@ pomdp = QuickPOMDP(
                 while !consistent
                     votes_for_each_player = generate_votes(sp, player_actions, rng)
                     voted_out = argmax(votes_for_each_player)
-                    if !sp.alive_players[voted_out]
+                    most_votes = votes_for_each_player[voted_out]
+                    if count(i->i==most_votes, votes_for_each_player) != 1
+                        voted_out = 0
+                    end
+                    if voted_out == sp.killed_last_round
                         consistent = true
                     else
-                        # println(player_actions, ' ', votes_for_each_player, ' ', voted_out)
+                        # println("Expecting to kill ", sp.killed_last_round, " but got votes ", player_actions)
                         tries += 1
                         if tries > 500
                             println("ERROR: Impossible to generate votes consistent with currently living players")
@@ -194,7 +201,7 @@ pomdp = QuickPOMDP(
     end,
 
     # initial state always has game_phase=discussion1 & all players alive.
-    initialstate = ImplicitDistribution(rng -> MafiaState(rand(rng, 2:5), discussion1, (true, true, true, true, true))),
+    initialstate = ImplicitDistribution(rng -> MafiaState(rand(rng, 2:5), discussion1, (true, true, true, true, true), 0)),
 
     # we are dead || mafia is dead || only mafia is alive
     isterminal = s -> !s.alive_players[1] || !s.alive_players[s.mafia_player] || (findall(x->x, s.alive_players) == [s.mafia_player])
